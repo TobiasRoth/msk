@@ -1,0 +1,21 @@
+Package: msk
+Title: R-Functions for Modulstufenkonzept (msk)
+Version: 0.1
+Authors@R: 
+    person("Tobias", "Roth", email = "roth@hintermannweber.ch", role = c("aut", "cre"))
+Description: Calculates indicotors based on example data.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Depends: 
+    R (>= 3.5)
+Imports:
+        dplyr,
+        magrittr,
+        tidyr
+LazyData: true
+Suggests:
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr

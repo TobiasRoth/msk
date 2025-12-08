@@ -1,0 +1,101 @@
+---
+title: "Biodiversity_Indicators"
+output: rmarkdown::pdf_document
+vignette: >
+  %\VignetteIndexEntry{Biodiversity_Indicators}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+
+# Libraries
+library(tidyverse)
+library(Rmisc)
+library(ggthemes)
+library(readxl)
+library(msk)
+
+# Plot settings
+theme_set(
+  theme_clean() +
+    theme(
+      legend.title = element_blank(), 
+      legend.position = "right", 
+      legend.background = element_rect(colour = "white"),
+      plot.background = element_blank())
+)
+options(ggplot2.discrete.colour= c("#1F78B4", "#FF7F00", "#33A02C", "#E31A1C", "#6A3D9A"))
+```
+
+# Data preparation
+The data structure adheres to the [Darwin Core](https://dwc.tdwg.org/) standart, which is utilised by numerous biodiversity data providers, such as GBIF.
+
+A dataset consists of at least the following two tables (classes according to Darwin Core):
+
+[Event](https://dwc.tdwg.org/terms/#event): Table for all surveys 
+
+Contains one row for each survey. This table is the main table (core class according to Darwin Core) and must include a column `eventID`  with unique IDs. All other columns are optional and can be added as needed:
+
+- `locationID` : If the dataset includes a table for the survey locations, a locationID is essential in order to associate the events with the survey locations.
+- Additional columns, such as the date of collection, can be added as needed.
+
+[Occurence](https://dwc.tdwg.org/terms/#occurrence): Table for the recorded taxa
+
+The documentation of an organism at a specific event serves as the basis for calculating the indicators. The `event ID`  is essential for associating the recorded taxa with individual surveys. Z
+
+Zusätzlich sind zwei weitere Tabellen möglich
+
+[Location](https://dwc.tdwg.org/terms/#location): Table for the data collection location.
+
+Enthält für jede Erhebung eine Zeile. Diese Tabelle Ist die Haupttabelle (core class gemäss darwin core) und muss eine Spalte "mit einer eindeutige `locationID`  für die erhebung enthalten. Weitere Spalten wie das Datum der Erhebung können beliebig ergänzt werden. Für jede 
+
+locationID
+
+Taxon: Species Lists
+
+# Calculate indicators
+For the calculation, there is a separate function for each indicator. These can be chained sequentially.
+
+```{r}
+dat <- 
+  dia %>% 
+  calc_alphadiv()
+```
+
+Die berechneten Indikatorwerte sind nun in `events` gespeichert. 
+
+```{r}
+dat$event
+```
+
+# Resultate plotten
+
+Jährliche Mittelwerte berechen und plotten
+
+```{r}
+dat$event %>% 
+  group_by(year = year(eventDate)) %>% 
+  dplyr::summarise(
+    av = mean(alphadiv)
+  ) %>% 
+  ggplot(aes(x = year, y = av)) +
+  geom_point() +
+  geom_smooth(method = lm) +
+  ylim(0, NA) +
+  labs(
+    x = "Species richness",
+    y = ""
+  )
+```
+
+
+
+
