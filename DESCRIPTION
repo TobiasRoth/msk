@@ -1,21 +1,29 @@
 Package: msk
-Title: R-Functions for Modulstufenkonzept (msk)
-Version: 0.1
-Authors@R: 
+Title: Biodiversity Indicators for the Swiss Modular Stepwise Procedure (MSK)
+Version: 0.2
+Authors@R:
     person("Tobias", "Roth", email = "roth@hintermannweber.ch", role = c("aut", "cre"))
-Description: Calculates indicotors based on example data.
+Description: Calculate biodiversity indicators (alpha, gamma, and beta
+    diversity, abundance) from species occurrence data following the Darwin
+    Core standard. Designed for data from the Swiss Modular Stepwise
+    Procedure (Modulstufenkonzept, MSK) but applicable to any
+    event/occurrence dataset.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
-Depends: 
+Depends:
     R (>= 3.5)
 Imports:
-        dplyr,
-        magrittr,
-        tidyr
+    dplyr,
+    magrittr,
+    rlang,
+    tibble,
+    tidyr
 LazyData: true
 Suggests:
+    ggplot2,
     knitr,
+    lubridate,
     rmarkdown
 VignetteBuilder: knitr

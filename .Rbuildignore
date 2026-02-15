@@ -1,2 +1,8 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^\.claude$
+^tmp$
+^data-raw$
+^LICENSE\.md$
+^Meta$
+^doc$

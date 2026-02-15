@@ -1,8 +1,8 @@
 ---
-title: "Biodiversity_Indicators"
-output: rmarkdown::pdf_document
+title: "Calculating Biodiversity Indicators with msk"
+output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Biodiversity_Indicators}
+  %\VignetteIndexEntry{Calculating Biodiversity Indicators with msk}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -10,92 +10,269 @@ vignette: >
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 4
 )
 ```
 
-```{r setup}
+# Introduction
 
-# Libraries
-library(tidyverse)
-library(Rmisc)
-library(ggthemes)
-library(readxl)
+The `msk` package provides a collection of R functions for calculating
+biodiversity indicators from species occurrence data. It was developed for
+analysing data from the Swiss
+[Modular Stepwise Procedure](https://modul-stufen-konzept.ch/en/about-the-msp/)
+(Modulstufenkonzept, MSK), a set of standardised methods for surveying and
+assessing the status of water bodies in Switzerland. However, the functions
+work with any dataset that follows the
+[Darwin Core](https://dwc.tdwg.org/terms/) standard.
+
+The package currently provides functions for:
+
+- **Alpha diversity** -- species richness per sampling event
+- **Total abundance** -- sum of individuals per sampling event
+- **Gamma diversity** -- total species richness across events
+- **Beta diversity** -- Simpson dissimilarity between events
+- **Index normalisation** -- express indicator values relative to a reference
+
+```{r setup, message = FALSE}
 library(msk)
-
-# Plot settings
-theme_set(
-  theme_clean() +
-    theme(
-      legend.title = element_blank(), 
-      legend.position = "right", 
-      legend.background = element_rect(colour = "white"),
-      plot.background = element_blank())
-)
-options(ggplot2.discrete.colour= c("#1F78B4", "#FF7F00", "#33A02C", "#E31A1C", "#6A3D9A"))
+library(dplyr)
+library(ggplot2)
 ```
 
-# Data preparation
-The data structure adheres to the [Darwin Core](https://dwc.tdwg.org/) standart, which is utilised by numerous biodiversity data providers, such as GBIF.
+# Data structure
 
-A dataset consists of at least the following two tables (classes according to Darwin Core):
+The `msk` package expects data as a **list** with two data frames (tibbles),
+following the [Darwin Core](https://dwc.tdwg.org/terms/) standard:
 
-[Event](https://dwc.tdwg.org/terms/#event): Table for all surveys 
+**`event`** -- one row per sampling event (Darwin Core *Event* class):
 
-Contains one row for each survey. This table is the main table (core class according to Darwin Core) and must include a column `eventID`  with unique IDs. All other columns are optional and can be added as needed:
+| Column       | Description                          | Required |
+|:-------------|:-------------------------------------|:---------|
+| `eventID`    | Unique identifier for the event      | yes      |
+| `eventDate`  | Date of the sampling event           | no       |
+| `locationID` | Identifier for the sampling location | no       |
 
-- `locationID` : If the dataset includes a table for the survey locations, a locationID is essential in order to associate the events with the survey locations.
-- Additional columns, such as the date of collection, can be added as needed.
+**`occurrence`** -- one row per taxon observation (Darwin Core *Occurrence* class):
 
-[Occurence](https://dwc.tdwg.org/terms/#occurrence): Table for the recorded taxa
+| Column            | Description                            | Required |
+|:------------------|:---------------------------------------|:---------|
+| `eventID`         | Link to the event table                | yes      |
+| `taxonID`         | Identifier for the recorded taxon      | yes      |
+| `individualCount` | Number of individuals observed         | no       |
 
-The documentation of an organism at a specific event serves as the basis for calculating the indicators. The `event ID`  is essential for associating the recorded taxa with individual surveys. Z
+The two tables are linked by `eventID`. Additional columns following Darwin
+Core terminology can be added freely (e.g. `samplingProtocol`, `habitat`,
+`scientificName`).
 
-Zusätzlich sind zwei weitere Tabellen möglich
+## Example dataset: Diatoms
 
-[Location](https://dwc.tdwg.org/terms/#location): Table for the data collection location.
-
-Enthält für jede Erhebung eine Zeile. Diese Tabelle Ist die Haupttabelle (core class gemäss darwin core) und muss eine Spalte "mit einer eindeutige `locationID`  für die erhebung enthalten. Weitere Spalten wie das Datum der Erhebung können beliebig ergänzt werden. Für jede 
-
-locationID
-
-Taxon: Species Lists
-
-# Calculate indicators
-For the calculation, there is a separate function for each indicator. These can be chained sequentially.
+The package includes a diatom dataset (`dia`) from the Swiss NAWA monitoring
+programme:
 
 ```{r}
-dat <- 
-  dia %>% 
+data("dia")
+str(dia, max.level = 1)
+```
+
+The **event** table contains `r nrow(dia$event)` sampling events:
+
+```{r}
+head(dia$event)
+```
+
+The **occurrence** table contains `r nrow(dia$occurrence)` taxon records:
+
+```{r}
+head(dia$occurrence)
+```
+
+# Calculating indicators
+
+All indicator functions follow the same pattern: they take a data list `dat`
+and return it with the computed indicator added. This allows chaining
+multiple calculations.
+
+## Alpha diversity
+
+Alpha diversity is the number of distinct taxa recorded at a single sampling
+event. Use `calc_alphadiv()` to compute it:
+
+```{r}
+dat <- dia %>%
   calc_alphadiv()
+
+head(dat$event)
 ```
 
-Die berechneten Indikatorwerte sind nun in `events` gespeichert. 
+The new column `alphadiv` contains the species richness per event.
+
+## Total abundance
+
+Total abundance is the sum of `individualCount` per event:
 
 ```{r}
-dat$event
+dat <- dat %>%
+  calc_abundance()
+
+head(dat$event)
 ```
 
-# Resultate plotten
+Both indicators can be computed in a single chain:
 
-Jährliche Mittelwerte berechen und plotten
+```{r, eval = FALSE}
+dat <- dia %>%
+  calc_alphadiv() %>%
+  calc_abundance()
+```
+
+## Gamma diversity
+
+Gamma diversity is the total number of distinct taxa across all events
+(or within groups). Unlike alpha diversity, this is a group-level metric,
+so `calc_gammadiv()` returns a separate summary table rather than adding a
+column to the event table.
 
 ```{r}
-dat$event %>% 
-  group_by(year = year(eventDate)) %>% 
-  dplyr::summarise(
-    av = mean(alphadiv)
-  ) %>% 
-  ggplot(aes(x = year, y = av)) +
+# Overall gamma diversity
+calc_gammadiv(dia)
+```
+
+To compute gamma diversity per year, first add a year column to the event
+table, then pass the grouping column name:
+
+```{r}
+dat$event$year <- as.integer(format(dat$event$eventDate, "%Y"))
+
+gamma_by_year <- calc_gammadiv(dat, group_by_col = "year")
+gamma_by_year
+```
+
+## Beta diversity
+
+Beta diversity measures how different communities are between sampling events.
+The `calc_betadiv()` function computes pairwise Simpson dissimilarity:
+
+$$\beta_{sim} = \frac{\min(b, c)}{a + \min(b, c)}$$
+
+where *a* is the number of shared taxa, *b* and *c* are the numbers of taxa
+unique to each event. The index ranges from 0 (identical) to 1 (completely
+different) and is independent of richness differences.
+
+```{r}
+# Overall beta diversity
+calc_betadiv(dia)
+```
+
+```{r}
+# Beta diversity per year
+beta_by_year <- calc_betadiv(dat, group_by_col = "year")
+beta_by_year
+```
+
+# Visualising results
+
+The indicator outputs are standard tibbles that work seamlessly with
+`ggplot2`.
+
+## Alpha diversity over time
+
+```{r alpha-plot}
+alpha_summary <- dat$event %>%
+  group_by(year) %>%
+  summarise(
+    mean = mean(alphadiv),
+    lo = mean - qt(0.975, n() - 1) * sd(alphadiv) / sqrt(n()),
+    up = mean + qt(0.975, n() - 1) * sd(alphadiv) / sqrt(n())
+  )
+
+ggplot(alpha_summary, aes(x = year, y = mean, ymin = lo, ymax = up)) +
   geom_point() +
-  geom_smooth(method = lm) +
+  geom_errorbar(width = 0.2) +
+  geom_smooth(method = "lm", se = FALSE, linetype = 2) +
   ylim(0, NA) +
   labs(
-    x = "Species richness",
-    y = ""
+    title = "Alpha Diversity",
+    x = "",
+    y = "Number of taxa per event"
   )
 ```
 
+## Gamma diversity over time
 
+```{r gamma-plot}
+ggplot(gamma_by_year, aes(x = year, y = gammadiv)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, linetype = 2) +
+  ylim(0, NA) +
+  labs(
+    title = "Gamma Diversity",
+    x = "",
+    y = "Total number of taxa"
+  )
+```
 
+## Beta diversity over time
 
+```{r beta-plot}
+ggplot(beta_by_year, aes(x = year, y = betadiv_mean,
+                         ymin = betadiv_q25, ymax = betadiv_q75)) +
+  geom_point() +
+  geom_errorbar(width = 0.2) +
+  geom_smooth(method = "lm", se = FALSE, linetype = 2) +
+  ylim(0, NA) +
+  labs(
+    title = "Beta Diversity (Simpson Dissimilarity)",
+    x = "",
+    y = "Community dissimilarity"
+  )
+```
+
+# Index normalisation
+
+To compare indicators on a common scale, use `calc_indicator_index()` to
+normalise values relative to a reference year (base = 100):
+
+```{r}
+gamma_indexed <- calc_indicator_index(
+  gamma_by_year,
+  value_col = "gammadiv",
+  group_col = "year",
+  ref_value = min(gamma_by_year$year)
+)
+gamma_indexed
+```
+
+```{r index-plot}
+ggplot(gamma_indexed, aes(x = year, y = index)) +
+  geom_hline(yintercept = 100, linetype = 2) +
+  geom_point() +
+  geom_line() +
+  labs(
+    title = "Gamma Diversity Index",
+    x = "",
+    y = paste0("Index [", min(gamma_by_year$year), " = 100]")
+  )
+```
+
+# Extending the package
+
+The `msk` package is designed to be extended with additional indicator
+functions. Planned additions include:
+
+- **IBCH** (Indice Biologique Global Harmonisé) -- for macroinvertebrate
+  assessment
+- **SPEAR Index** -- pesticide sensitivity indicator
+- **Shannon diversity / Evenness** -- abundance-weighted diversity measures
+- **Trend analysis** -- temporal trend estimation with mixed models
+
+New indicator functions should follow the established pattern:
+
+1. Take a `dat` list with `event` and `occurrence` tables
+2. Compute the indicator
+3. Return the modified `dat` list (for event-level indicators) or a summary
+   tibble (for group-level indicators)
+
+This ensures all functions are composable and work with the same data
+structure.

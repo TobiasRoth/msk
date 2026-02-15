@@ -21,7 +21,7 @@ event <- dia %>%
     eventDate = first(date)
   )
 
-occurence <- dia %>%
+occurrence <- dia %>%
   transmute(
     taxonID = aID_SP,
     # taxonRank = "species",
@@ -31,7 +31,7 @@ occurence <- dia %>%
 
 dia <- list(
   event = event,
-  occurence = occurence
+  occurrence = occurrence
 )
 
 usethis::use_data(dia, overwrite = TRUE)

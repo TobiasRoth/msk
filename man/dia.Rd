@@ -7,14 +7,14 @@
 \format{
 A \code{list} with 2 elements:
 \describe{
-\item{event}{A tibble (\code{tibble}) with 454 rows and 2 variables:
+\item{event}{A tibble with 454 rows and 2 variables:
 \describe{
 \item{eventID}{Character; unique identifier of the sampling event
 (e.g. \code{"100_2011"}).}
 \item{eventDate}{Date (\code{Date}); date of sampling.}
 }
 }
-\item{occurence}{A tibble (\code{tibble}) with 13,422 rows and 3 variables:
+\item{occurrence}{A tibble with 13,422 rows and 3 variables:
 \describe{
 \item{taxonID}{Numeric key of the recorded taxon.}
 \item{eventID}{Character; link to the corresponding
@@ -30,19 +30,21 @@ dia
 }
 \description{
 Dataset with sampling events and associated species occurrences
-(diatoms). The data are stored as a list with two tibbles:
-\code{event} describes individual sampling events, \code{occurence}
+(diatoms) from the Swiss NAWA monitoring programme. The data are
+stored as a list with two tibbles following the
+\href{https://dwc.tdwg.org/terms/}{Darwin Core} standard:
+\code{event} describes individual sampling events, \code{occurrence}
 the observed taxa per event.
 }
 \details{
 The two tibbles are linked by \code{eventID}: each row in
-\code{occurence} refers to exactly one event in \code{event}.
+\code{occurrence} refers to exactly one event in \code{event}.
 }
 \examples{
 data("dia")
 names(dia)
 dplyr::glimpse(dia$event)
-dplyr::glimpse(dia$occurence)
+dplyr::glimpse(dia$occurrence)
 
 }
 \keyword{datasets}
