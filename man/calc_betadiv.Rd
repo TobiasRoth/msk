@@ -51,11 +51,9 @@ does not require the \pkg{simba} package.
 }
 \examples{
 # Overall beta diversity
-calc_betadiv(dia)
+calc_betadiv(mzb)
 
 # Beta diversity per year
-dat <- dia
-dat$event$year <- as.integer(format(dat$event$eventDate, "\%Y"))
-calc_betadiv(dat, group_by_col = "year")
+calc_betadiv(mzb, group_by_col = "year")
 
 }

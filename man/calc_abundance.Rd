@@ -38,10 +38,10 @@ total abundance (sum of all individuals) or mean abundance per taxon
 (mean of per-taxon individual counts).
 }
 \examples{
-dat <- calc_abundance(dia)
+dat <- calc_abundance(mzb)
 head(dat$event)
 
-dat <- calc_abundance(dia, method = "mean_per_taxon")
+dat <- calc_abundance(mzb, method = "mean_per_taxon")
 head(dat$event)
 
 }

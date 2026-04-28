@@ -33,9 +33,7 @@ in biodiversity indicators. The reference group (e.g. the first survey
 year) is set to 100 and all other values are expressed relative to it.
 }
 \examples{
-dat <- dia
-dat$event$year <- as.integer(format(dat$event$eventDate, "\%Y"))
-gamma <- calc_gammadiv(dat, group_by_col = "year")
-calc_indicator_index(gamma, "gammadiv", "year", ref_value = 2011)
+gamma <- calc_gammadiv(mzb, group_by_col = "year")
+calc_indicator_index(gamma, "gammadiv", "year", ref_value = 2012)
 
 }

@@ -24,10 +24,8 @@
 #' @export
 #'
 #' @examples
-#' dat <- dia
-#' dat$event$year <- as.integer(format(dat$event$eventDate, "%Y"))
-#' gamma <- calc_gammadiv(dat, group_by_col = "year")
-#' calc_indicator_index(gamma, "gammadiv", "year", ref_value = 2011)
+#' gamma <- calc_gammadiv(mzb, group_by_col = "year")
+#' calc_indicator_index(gamma, "gammadiv", "year", ref_value = 2012)
 #'
 calc_indicator_index <- function(data, value_col, group_col, ref_value) {
   ref_row <- data[[group_col]] == ref_value

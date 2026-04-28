@@ -34,12 +34,10 @@
 #'
 #' @examples
 #' # Overall gamma diversity
-#' calc_gammadiv(dia)
+#' calc_gammadiv(mzb)
 #'
-#' # Gamma diversity per year (requires a year column in event)
-#' dat <- dia
-#' dat$event$year <- as.integer(format(dat$event$eventDate, "%Y"))
-#' calc_gammadiv(dat, group_by_col = "year")
+#' # Gamma diversity per year
+#' calc_gammadiv(mzb, group_by_col = "year")
 #'
 calc_gammadiv <- function(dat, group_by_col = NULL) {
   occ <- dat$occurrence %>%

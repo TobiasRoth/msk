@@ -30,7 +30,7 @@
 #' @export
 #'
 #' @examples
-#' dat <- calc_alphadiv(dia)
+#' dat <- calc_alphadiv(mzb)
 #' head(dat$event)
 #'
 calc_alphadiv <- function(dat) {

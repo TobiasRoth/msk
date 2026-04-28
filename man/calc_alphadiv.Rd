@@ -33,7 +33,7 @@ values per \code{eventID} in \code{dat$occurrence}. The resulting
 values are left-joined to \code{dat$event} by \code{eventID}.
 }
 \examples{
-dat <- calc_alphadiv(dia)
+dat <- calc_alphadiv(mzb)
 head(dat$event)
 
 }
