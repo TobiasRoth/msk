@@ -1,6 +1,6 @@
 Package: msk
 Title: Biodiversity Indicators for the Swiss Modular Stepwise Procedure (MSK)
-Version: 0.2
+Version: 0.3
 Authors@R:
     person("Tobias", "Roth", email = "roth@hintermannweber.ch", role = c("aut", "cre"))
 Description: Calculate biodiversity indicators (alpha, gamma, and beta
