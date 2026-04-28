@@ -76,7 +76,7 @@ calc_betadiv(mzb, group_by_col = "year")
 
 Both datasets are included for demonstration purposes only and must not be used
 for analysis or reporting. The authoritative source is the
-[MIDAT database](https://www.midat.ch) (MZB) and the relevant cantonal and
+[MIDAT database](https://www.infofauna.ch/de/fauna-der-schweiz/makrozoobenthos#gsc.tab=0) (MZB) and the relevant cantonal and
 federal fish data repositories.
 
 ## Documentation
