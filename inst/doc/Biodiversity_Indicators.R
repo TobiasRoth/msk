@@ -6,6 +6,25 @@ knitr::opts_chunk$set(
   fig.height = 4
 )
 
+## ----flowchart, echo = FALSE, fig.height = 1.6--------------------------------
+DiagrammeR::grViz("
+digraph {
+  graph [rankdir = LR, fontname = Arial, bgcolor = transparent]
+  node  [fontname = Arial, fontsize = 13, style = filled,
+         shape = box, margin = '0.2,0.12', penwidth = 1.2]
+  edge  [fontname = Arial, fontsize = 11, color = '#555555']
+
+  A [label = 'Flat table\n(e.g. MIDAT export)',   fillcolor = '#dce8f5', color = '#5a8fc2']
+  B [label = 'R data frame',                       fillcolor = '#dce8f5', color = '#5a8fc2']
+  C [label = 'msk list\n(event + occurrence)',     fillcolor = '#dce8f5', color = '#5a8fc2']
+  D [label = 'Biodiversity\nindicators',            fillcolor = '#d5f5e3', color = '#2e8b57']
+
+  A -> B [label = 'read_excel()\nread.csv()']
+  B -> C [label = 'as_msk()']
+  C -> D [label = 'calc_alphadiv()\ncalc_abundance()\ncalc_betadiv() ...']
+}
+")
+
 ## ----setup, message = FALSE---------------------------------------------------
 library(msk)
 library(dplyr)
@@ -21,6 +40,75 @@ head(mzb$event)
 
 ## -----------------------------------------------------------------------------
 head(mzb$occurrence)
+
+## ----as-msk-import------------------------------------------------------------
+library(readxl)
+
+path <- system.file("extdata", "midat_example.xlsx", package = "msk")
+dat  <- read_excel(path) %>% as_msk()
+
+dat$event
+
+## ----eval = FALSE-------------------------------------------------------------
+# # Excel
+# dat <- read_excel("midat_export.xlsx") %>% as_msk()
+# 
+# # CSV
+# dat <- read.csv("export.csv") %>% as_msk()
+
+## ----eval = FALSE-------------------------------------------------------------
+# # Default: altitude and locationName included from MIDAT columns
+# as_msk(raw)
+# 
+# # No extra event columns
+# as_msk(raw, event_cols = NULL)
+# 
+# # Custom extra columns on both levels
+# as_msk(
+#   raw,
+#   event_cols      = c(altitude = "hohe", stream = "gewaesser"),
+#   occurrence_cols = c(spear = "spear_2019_11")
+# )
+
+## ----eval = FALSE-------------------------------------------------------------
+# read_excel("other_export.xlsx") %>%
+#   as_msk(
+#     location_id     = "site_code",
+#     date            = "sample_date",
+#     taxon_id        = "species",
+#     count           = "n_individuals",
+#     event_cols      = c(altitude = "elevation", stream = "river_name"),
+#     occurrence_cols = c(RL = "red_list_status")
+#   )
+
+## ----as-msk-example-----------------------------------------------------------
+flat <- data.frame(
+  station_id = c(1, 1, 1, 2, 2),
+  gewaesser  = c("Aare", "Aare", "Aare", "Thur", "Thur"),
+  dd = 12, mm = 6, yyyy = 2023,
+  hohe       = c(480, 480, 480, 395, 395),
+  taxon_ibch = c("Baetidae", "Ephemerellidae", "Gammaridae",
+                 "Baetidae", "Simuliidae"),
+  freq1      = c(45, 12, 230, 18, 67),
+  det_method = c("kick", "kick", "kick", "surber", "surber")
+)
+
+# MIDAT defaults: altitude and locationName added automatically
+dat <- as_msk(flat)
+dat$event
+dat$occurrence
+
+## ----as-msk-extracols---------------------------------------------------------
+as_msk(
+  flat,
+  event_cols      = c(altitude = "hohe"),
+  occurrence_cols = c(method = "det_method")
+)$occurrence
+
+## ----as-msk-pipeline----------------------------------------------------------
+as_msk(flat) %>%
+  calc_alphadiv() %>%
+  calc_abundance()
 
 ## -----------------------------------------------------------------------------
 dat <- mzb %>%

@@ -1,0 +1,198 @@
+#' Convert a flat species table to the msk data structure
+#'
+#' Converts any flat table (one row per taxon per sampling event) into the
+#' Darwin Core list format expected by all \code{msk} indicator functions.
+#' Only the columns needed to identify events and taxa are required; any
+#' additional columns can be passed through to the \code{event} or
+#' \code{occurrence} table via \code{event_cols} and \code{occurrence_cols}.
+#' Default column names match the MIDAT flat export format.
+#'
+#' @param dat A data frame (or tibble) in flat format: one row per taxon per
+#'   sampling event.
+#' @param event_id Name of an existing column to use as \code{eventID}.
+#'   If \code{NULL} (default), \code{eventID} is constructed as
+#'   \code{"<location_id>_<yyyymmdd>"} from the \code{location_id} and date
+#'   columns.
+#' @param location_id Name of the column identifying the sampling location.
+#'   Default: \code{"station_id"}.
+#' @param date Name of a single \code{Date} column. If supplied, \code{dd},
+#'   \code{mm}, and \code{yyyy} are ignored. Default: \code{NULL}.
+#' @param dd Name of the day column. Default: \code{"dd"}.
+#' @param mm Name of the month column. Default: \code{"mm"}.
+#' @param yyyy Name of the year column. Default: \code{"yyyy"}.
+#' @param taxon_id Name of the column containing taxon identifiers.
+#'   Default: \code{"taxon_ibch"}.
+#' @param count Name of the column containing individual counts.
+#'   Default: \code{"freq1"}.
+#' @param event_cols Named character vector of additional columns to include
+#'   in the \code{event} table. Names become the output column names; values
+#'   are the source column names in \code{dat}. Unnamed elements keep their
+#'   original name. Columns not found in \code{dat} are silently skipped.
+#'   Default includes \code{altitude} (\code{"hohe"}) and
+#'   \code{locationName} (\code{"gewaesser"}) for MIDAT exports.
+#'   Set to \code{NULL} to include no extra columns.
+#' @param occurrence_cols Named character vector of additional columns to
+#'   include in the \code{occurrence} table, following the same convention as
+#'   \code{event_cols}. Default: \code{NULL}.
+#'
+#' @return
+#' A list with two tibbles:
+#' \describe{
+#'   \item{\code{event}}{One row per sampling event. Always contains
+#'     \code{eventID}, \code{eventDate}, \code{locationID}, \code{year},
+#'     plus any columns specified in \code{event_cols} that exist in
+#'     \code{dat}.}
+#'   \item{\code{occurrence}}{One row per taxon per event. Always contains
+#'     \code{eventID}, \code{taxonID}, \code{individualCount}, plus any
+#'     columns specified in \code{occurrence_cols} that exist in \code{dat}.
+#'     Rows with a missing or empty \code{taxon_id} value are dropped.}
+#' }
+#'
+#' @importFrom dplyr mutate transmute distinct filter
+#' @importFrom tibble as_tibble
+#' @export
+#'
+#' @examples
+#' flat <- data.frame(
+#'   station_id = c(1, 1, 2, 2),
+#'   gewaesser  = c("Aare", "Aare", "Thur", "Thur"),
+#'   dd = 12, mm = 6, yyyy = 2023,
+#'   hohe       = c(480, 480, 395, 395),
+#'   taxon_ibch = c("Baetidae", "Gammaridae", "Baetidae", "Simuliidae"),
+#'   freq1      = c(45, 230, 18, 67)
+#' )
+#'
+#' # MIDAT defaults: altitude and locationName included automatically
+#' as_msk(flat)$event
+#'
+#' # No extra event columns
+#' as_msk(flat, event_cols = NULL)$event
+#'
+#' # Custom extra columns on both levels
+#' flat$habitat   <- c("riffle", "riffle", "pool", "pool")
+#' flat$det_notes <- c("conf.", "conf.", "cf.", "conf.")
+#'
+#' as_msk(
+#'   flat,
+#'   event_cols      = c(altitude = "hohe", habitat = "habitat"),
+#'   occurrence_cols = c(notes = "det_notes")
+#' )$occurrence
+#'
+#' \dontrun{
+#' # MIDAT export via inst/extdata
+#' library(readxl)
+#' path <- system.file("extdata", "midat_example.xlsx", package = "msk")
+#' dat  <- read_excel(path) %>% as_msk()
+#'
+#' # Different export format with custom mapping
+#' read_excel("other_export.xlsx") %>%
+#'   as_msk(
+#'     location_id     = "site_code",
+#'     date            = "sample_date",
+#'     taxon_id        = "species",
+#'     count           = "n_individuals",
+#'     event_cols      = c(altitude = "elevation", stream = "river_name"),
+#'     occurrence_cols = c(RL = "red_list_status")
+#'   )
+#' }
+as_msk <- function(dat,
+                   event_id        = NULL,
+                   location_id     = "station_id",
+                   date            = NULL,
+                   dd              = "dd",
+                   mm              = "mm",
+                   yyyy            = "yyyy",
+                   taxon_id        = "taxon_ibch",
+                   count           = "freq1",
+                   event_cols      = c(altitude     = "hohe",
+                                       locationName = "gewaesser"),
+                   occurrence_cols = NULL) {
+
+  dat <- tibble::as_tibble(dat)
+
+  # ---- Validate required columns ----------------------------------------
+  required <- c(location_id, taxon_id, count)
+  if (!is.null(event_id)) {
+    required <- c(required, event_id)
+  } else if (!is.null(date)) {
+    required <- c(required, date)
+  } else {
+    required <- c(required, dd, mm, yyyy)
+  }
+  missing <- setdiff(required, names(dat))
+  if (length(missing) > 0) {
+    stop("Required columns missing from input: ",
+         paste(missing, collapse = ", "))
+  }
+
+  # ---- Build eventDate and year -----------------------------------------
+  if (!is.null(date)) {
+    dat[["..eventDate"]] <- as.Date(dat[[date]])
+    dat[["..year"]]      <- as.integer(format(dat[["..eventDate"]], "%Y"))
+  } else {
+    dat[["..eventDate"]] <- as.Date(sprintf(
+      "%d-%02d-%02d",
+      as.integer(dat[[yyyy]]),
+      as.integer(dat[[mm]]),
+      as.integer(dat[[dd]])
+    ))
+    dat[["..year"]] <- as.integer(dat[[yyyy]])
+  }
+
+  # ---- Build eventID ----------------------------------------------------
+  if (!is.null(event_id)) {
+    dat[["..eventID"]] <- as.character(dat[[event_id]])
+  } else {
+    dat[["..eventID"]] <- paste(
+      dat[[location_id]],
+      format(dat[["..eventDate"]], "%Y%m%d"),
+      sep = "_"
+    )
+  }
+
+  # ---- Helper: add extra columns ----------------------------------------
+  add_cols <- function(target, source_dat, col_spec) {
+    if (is.null(col_spec) || length(col_spec) == 0) return(target)
+    nms <- names(col_spec)
+    for (i in seq_along(col_spec)) {
+      src <- col_spec[[i]]
+      nm  <- if (!is.null(nms) && nzchar(nms[[i]])) nms[[i]] else src
+      if (src %in% names(source_dat)) {
+        target[[nm]] <- source_dat[[src]]
+      }
+    }
+    target
+  }
+
+  # ---- Event table -------------------------------------------------------
+  event_src <- dat %>%
+    dplyr::distinct(..eventID, .keep_all = TRUE)
+
+  event <- event_src %>%
+    dplyr::transmute(
+      eventID    = .data[["..eventID"]],
+      eventDate  = .data[["..eventDate"]],
+      locationID = .data[[location_id]],
+      year       = .data[["..year"]]
+    )
+
+  event <- add_cols(event, event_src, event_cols)
+
+  # ---- Occurrence table -------------------------------------------------
+  occ_src <- dat %>%
+    dplyr::filter(
+      !is.na(.data[[taxon_id]]),
+      as.character(.data[[taxon_id]]) != ""
+    )
+
+  occurrence <- occ_src %>%
+    dplyr::transmute(
+      eventID         = .data[["..eventID"]],
+      taxonID         = as.character(.data[[taxon_id]]),
+      individualCount = as.numeric(.data[[count]])
+    )
+
+  occurrence <- add_cols(occurrence, occ_src, occurrence_cols)
+
+  list(event = event, occurrence = occurrence)
+}

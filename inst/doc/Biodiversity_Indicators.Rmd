@@ -27,12 +27,35 @@ from species occurrence data. It was developed for analysing data from the Swiss
 (Modulstufenkonzept, MSK), but works with any dataset following the
 [Darwin Core](https://dwc.tdwg.org/terms/) standard.
 
-This vignette is structured in three parts:
+The typical workflow has four steps:
 
-1. **Data structure** — how to organise your data for use with `msk`
-2. **Indicator functions** — how each function works, illustrated with
+```{r flowchart, echo = FALSE, fig.height = 1.6}
+DiagrammeR::grViz("
+digraph {
+  graph [rankdir = LR, fontname = Arial, bgcolor = transparent]
+  node  [fontname = Arial, fontsize = 13, style = filled,
+         shape = box, margin = '0.2,0.12', penwidth = 1.2]
+  edge  [fontname = Arial, fontsize = 11, color = '#555555']
+
+  A [label = 'Flat table\n(e.g. MIDAT export)',   fillcolor = '#dce8f5', color = '#5a8fc2']
+  B [label = 'R data frame',                       fillcolor = '#dce8f5', color = '#5a8fc2']
+  C [label = 'msk list\n(event + occurrence)',     fillcolor = '#dce8f5', color = '#5a8fc2']
+  D [label = 'Biodiversity\nindicators',            fillcolor = '#d5f5e3', color = '#2e8b57']
+
+  A -> B [label = 'read_excel()\nread.csv()']
+  B -> C [label = 'as_msk()']
+  C -> D [label = 'calc_alphadiv()\ncalc_abundance()\ncalc_betadiv() ...']
+}
+")
+```
+
+This vignette is structured in four parts:
+
+1. **Data structure** — the Darwin Core list format expected by `msk`
+2. **Importing your own data** — converting a flat table with `as_msk()`
+3. **Indicator functions** — how each function works, illustrated with
    macroinvertebrate data (`mzb`)
-3. **Complete example** — a full analysis of Swiss NAWA fish monitoring data
+4. **Complete example** — a full analysis of Swiss NAWA fish monitoring data
    (`fisch`), including a custom biomass metric
 
 ```{r setup, message = FALSE}
@@ -90,6 +113,135 @@ The **occurrence** table has one row per taxon per event:
 
 ```{r}
 head(mzb$occurrence)
+```
+
+---
+
+# Importing your own data
+
+If your data is stored as a flat table — one row per taxon per sampling event —
+use `as_msk()` to convert it into the msk list format. The function works with
+any flat table; the default column names match the MIDAT flat export format.
+
+## Workflow
+
+Read the file into R with standard functions, then pipe directly into
+`as_msk()`. The package includes a MIDAT example file that you can use
+to try the workflow immediately:
+
+```{r as-msk-import}
+library(readxl)
+
+path <- system.file("extdata", "midat_example.xlsx", package = "msk")
+dat  <- read_excel(path) %>% as_msk()
+
+dat$event
+```
+
+For your own files, replace `system.file(...)` with the path to your export:
+
+```{r, eval = FALSE}
+# Excel
+dat <- read_excel("midat_export.xlsx") %>% as_msk()
+
+# CSV
+dat <- read.csv("export.csv") %>% as_msk()
+```
+
+## Column mapping
+
+Only the columns needed to identify events and taxa are required. Everything
+else is optional and controlled via two arguments:
+
+- **`event_cols`**: extra columns added to the `event` table
+- **`occurrence_cols`**: extra columns added to the `occurrence` table
+
+Both accept a **named character vector** where the name becomes the output
+column name and the value is the source column in `dat`. Unnamed elements
+keep their original name. Columns not found in `dat` are silently skipped.
+
+**Required columns** (with MIDAT defaults):
+
+| Argument     | MIDAT default  | Description                            |
+|:-------------|:---------------|:---------------------------------------|
+| `location_id`| `"station_id"` | Sampling location identifier           |
+| `yyyy`, `mm`, `dd` | `"yyyy"`, `"mm"`, `"dd"` | Year / month / day  |
+| `date`       | `NULL`         | Alternative: single Date column        |
+| `taxon_id`   | `"taxon_ibch"` | Taxon identifier                       |
+| `count`      | `"freq1"`      | Individual count                       |
+| `event_id`   | `NULL`         | Existing eventID column (optional)     |
+
+**Extra columns** default to MIDAT conventions:
+
+```{r, eval = FALSE}
+# Default: altitude and locationName included from MIDAT columns
+as_msk(raw)
+
+# No extra event columns
+as_msk(raw, event_cols = NULL)
+
+# Custom extra columns on both levels
+as_msk(
+  raw,
+  event_cols      = c(altitude = "hohe", stream = "gewaesser"),
+  occurrence_cols = c(spear = "spear_2019_11")
+)
+```
+
+For a completely different export format, remap the required columns too:
+
+```{r, eval = FALSE}
+read_excel("other_export.xlsx") %>%
+  as_msk(
+    location_id     = "site_code",
+    date            = "sample_date",
+    taxon_id        = "species",
+    count           = "n_individuals",
+    event_cols      = c(altitude = "elevation", stream = "river_name"),
+    occurrence_cols = c(RL = "red_list_status")
+  )
+```
+
+## Worked example
+
+The following toy dataset illustrates the conversion. The input is a flat
+table as it might come from a database export:
+
+```{r as-msk-example}
+flat <- data.frame(
+  station_id = c(1, 1, 1, 2, 2),
+  gewaesser  = c("Aare", "Aare", "Aare", "Thur", "Thur"),
+  dd = 12, mm = 6, yyyy = 2023,
+  hohe       = c(480, 480, 480, 395, 395),
+  taxon_ibch = c("Baetidae", "Ephemerellidae", "Gammaridae",
+                 "Baetidae", "Simuliidae"),
+  freq1      = c(45, 12, 230, 18, 67),
+  det_method = c("kick", "kick", "kick", "surber", "surber")
+)
+
+# MIDAT defaults: altitude and locationName added automatically
+dat <- as_msk(flat)
+dat$event
+dat$occurrence
+```
+
+Extra columns can be added to either table. Here we pass `det_method` to the
+occurrence table and skip `locationName`:
+
+```{r as-msk-extracols}
+as_msk(
+  flat,
+  event_cols      = c(altitude = "hohe"),
+  occurrence_cols = c(method = "det_method")
+)$occurrence
+```
+
+The result is immediately usable in indicator pipelines:
+
+```{r as-msk-pipeline}
+as_msk(flat) %>%
+  calc_alphadiv() %>%
+  calc_abundance()
 ```
 
 ---

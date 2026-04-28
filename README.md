@@ -27,6 +27,7 @@ library(msk)
 
 | Function | Type | Description |
 |:---|:---|:---|
+| `as_msk()` | import | Convert a flat species table to the msk data structure |
 | `calc_alphadiv()` | event-level | Number of distinct taxa per event |
 | `calc_abundance()` | event-level | Total or mean-per-taxon abundance per event |
 | `calc_gammadiv()` | group-level | Total distinct taxa across events (optionally per group) |
