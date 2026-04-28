@@ -2,9 +2,9 @@
 % Please edit documentation in R/calc_abundance.R
 \name{calc_abundance}
 \alias{calc_abundance}
-\title{Calculate total abundance per sampling event}
+\title{Calculate abundance per sampling event}
 \usage{
-calc_abundance(dat)
+calc_abundance(dat, method = "total")
 }
 \arguments{
 \item{dat}{A list with at least two elements:
@@ -12,28 +12,36 @@ calc_abundance(dat)
 \item \code{event}: a data frame (or tibble) with one row per sampling
 event and a column \code{eventID}.
 \item \code{occurrence}: a data frame (or tibble) with at least the
-columns \code{eventID} and \code{individualCount}.
+columns \code{eventID}, \code{taxonID}, and \code{individualCount}.
+}}
+
+\item{method}{Character string specifying the abundance metric:
+\itemize{
+\item \code{"total"} (default): sum of \code{individualCount} per event.
+Result column: \code{abundance}.
+\item \code{"mean_per_taxon"}: mean of per-taxon individual counts per
+event. Counts are first summed within each taxon (to handle multiple
+rows per taxon), then averaged across taxa. Result column:
+\code{abundance_mean}. Less sensitive to dominant taxa than
+\code{"total"}.
 }}
 }
 \value{
-The input list \code{dat} with its \code{event} component modified:
-a numeric column \code{abundance} is added, giving the total number of
-individuals recorded for each \code{eventID}. Events with no
-occurrences receive \code{abundance = 0}.
+The input list \code{dat} with its \code{event} component modified.
+A numeric column is added (\code{abundance} or \code{abundance_mean},
+depending on \code{method}). Events with no occurrences receive \code{0}.
 }
 \description{
-This function calculates the total abundance (sum of
-\code{individualCount}) for each sampling event based on the
-\code{occurrence} table, and attaches the result as a new column
-\code{abundance} to the \code{event} table.
-}
-\details{
-Total abundance is computed as the sum of \code{individualCount}
-values per \code{eventID} in \code{dat$occurrence}. The resulting
-values are left-joined to \code{dat$event} by \code{eventID}.
+Calculates abundance for each sampling event and attaches the result
+as a new column to the \code{event} table. Two methods are available:
+total abundance (sum of all individuals) or mean abundance per taxon
+(mean of per-taxon individual counts).
 }
 \examples{
 dat <- calc_abundance(dia)
+head(dat$event)
+
+dat <- calc_abundance(dia, method = "mean_per_taxon")
 head(dat$event)
 
 }

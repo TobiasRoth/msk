@@ -1,6 +1,9 @@
 ---
 title: "Calculating Biodiversity Indicators with msk"
-output: rmarkdown::html_vignette
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 2
 vignette: >
   %\VignetteIndexEntry{Calculating Biodiversity Indicators with msk}
   %\VignetteEngine{knitr::rmarkdown}
@@ -18,35 +21,35 @@ knitr::opts_chunk$set(
 
 # Introduction
 
-The `msk` package provides a collection of R functions for calculating
-biodiversity indicators from species occurrence data. It was developed for
-analysing data from the Swiss
+The `msk` package provides R functions for calculating biodiversity indicators
+from species occurrence data. It was developed for analysing data from the Swiss
 [Modular Stepwise Procedure](https://modul-stufen-konzept.ch/en/about-the-msp/)
-(Modulstufenkonzept, MSK), a set of standardised methods for surveying and
-assessing the status of water bodies in Switzerland. However, the functions
-work with any dataset that follows the
+(Modulstufenkonzept, MSK), but works with any dataset following the
 [Darwin Core](https://dwc.tdwg.org/terms/) standard.
 
-The package currently provides functions for:
+This vignette is structured in three parts:
 
-- **Alpha diversity** -- species richness per sampling event
-- **Total abundance** -- sum of individuals per sampling event
-- **Gamma diversity** -- total species richness across events
-- **Beta diversity** -- Simpson dissimilarity between events
-- **Index normalisation** -- express indicator values relative to a reference
+1. **Data structure** — how to organise your data for use with `msk`
+2. **Indicator functions** — how each function works, illustrated with
+   macroinvertebrate data (`mzb`)
+3. **Complete example** — a full analysis of Swiss NAWA fish monitoring data
+   (`fisch`), including a custom biomass metric
 
 ```{r setup, message = FALSE}
 library(msk)
 library(dplyr)
 library(ggplot2)
+library(patchwork)
 ```
+
+---
 
 # Data structure
 
 The `msk` package expects data as a **list** with two data frames (tibbles),
-following the [Darwin Core](https://dwc.tdwg.org/terms/) standard:
+following the [Darwin Core](https://dwc.tdwg.org/terms/) standard.
 
-**`event`** -- one row per sampling event (Darwin Core *Event* class):
+**`event`** — one row per sampling event:
 
 | Column       | Description                          | Required |
 |:-------------|:-------------------------------------|:---------|
@@ -54,7 +57,7 @@ following the [Darwin Core](https://dwc.tdwg.org/terms/) standard:
 | `eventDate`  | Date of the sampling event           | no       |
 | `locationID` | Identifier for the sampling location | no       |
 
-**`occurrence`** -- one row per taxon observation (Darwin Core *Occurrence* class):
+**`occurrence`** — one row per taxon observation:
 
 | Column            | Description                            | Required |
 |:------------------|:---------------------------------------|:---------|
@@ -62,184 +65,204 @@ following the [Darwin Core](https://dwc.tdwg.org/terms/) standard:
 | `taxonID`         | Identifier for the recorded taxon      | yes      |
 | `individualCount` | Number of individuals observed         | no       |
 
-The two tables are linked by `eventID`. Additional columns following Darwin
-Core terminology can be added freely (e.g. `samplingProtocol`, `habitat`,
-`scientificName`).
+The two tables are linked by `eventID`. Additional columns (e.g. `year`,
+`altitude`, `scientificName`) can be added freely — they are preserved by all
+package functions.
 
-## Example dataset: Diatoms
+## The `mzb` dataset
 
-The package includes a diatom dataset (`dia`) from the Swiss NAWA monitoring
-programme:
-
-```{r}
-data("dia")
-str(dia, max.level = 1)
-```
-
-The **event** table contains `r nrow(dia$event)` sampling events:
+The package includes a macroinvertebrate dataset (`mzb`) from the Swiss NAWA
+monitoring programme, covering four campaigns (2012, 2015, 2019, 2023) across
+85 stations below 1000 m a.s.l. that were sampled in all four campaigns:
 
 ```{r}
-head(dia$event)
+data("mzb")
+str(mzb, max.level = 1)
 ```
 
-The **occurrence** table contains `r nrow(dia$occurrence)` taxon records:
+The **event** table has one row per sampling event:
 
 ```{r}
-head(dia$occurrence)
+head(mzb$event)
 ```
 
-# Calculating indicators
+The **occurrence** table has one row per taxon per event:
 
-All indicator functions follow the same pattern: they take a data list `dat`
-and return it with the computed indicator added. This allows chaining
-multiple calculations.
+```{r}
+head(mzb$occurrence)
+```
+
+---
+
+# Indicator functions
+
+The `msk` package provides two types of indicator functions:
+
+- **Event-level functions** add a new column to the `event` table and return
+  the modified data list. They are chainable with `%>%`.
+- **Group-level functions** compute indicators across sets of events and return
+  a separate summary tibble.
 
 ## Alpha diversity
 
-Alpha diversity is the number of distinct taxa recorded at a single sampling
-event. Use `calc_alphadiv()` to compute it:
+Alpha diversity is the number of distinct taxa per sampling event.
+`calc_alphadiv()` adds an `alphadiv` column to the event table:
 
 ```{r}
-dat <- dia %>%
+dat <- mzb %>%
   calc_alphadiv()
 
 head(dat$event)
 ```
 
-The new column `alphadiv` contains the species richness per event.
+## Abundance
 
-## Total abundance
+`calc_abundance()` supports two methods, selected with the `method` argument:
 
-Total abundance is the sum of `individualCount` per event:
+- **`"total"`** (default): sum of `individualCount` per event. Reflects overall
+  abundance but is sensitive to dominant taxa.
+- **`"mean_per_taxon"`**: mean of per-taxon counts per event. Less sensitive
+  to dominant taxa; useful for tracking whether individual species become more
+  or less abundant on average across taxa of different commonness.
+
+Both methods can be applied in sequence:
 
 ```{r}
 dat <- dat %>%
-  calc_abundance()
+  calc_abundance(method = "total") %>%
+  calc_abundance(method = "mean_per_taxon")
 
 head(dat$event)
 ```
 
-Both indicators can be computed in a single chain:
-
-```{r, eval = FALSE}
-dat <- dia %>%
-  calc_alphadiv() %>%
-  calc_abundance()
-```
+The result columns are named `abundance` (total) and `abundance_mean`
+(mean per taxon).
 
 ## Gamma diversity
 
-Gamma diversity is the total number of distinct taxa across all events
-(or within groups). Unlike alpha diversity, this is a group-level metric,
-so `calc_gammadiv()` returns a separate summary table rather than adding a
-column to the event table.
+Gamma diversity is the total number of distinct taxa across a group of events.
+Unlike alpha diversity, this is a group-level metric, so `calc_gammadiv()`
+returns a summary tibble. Use `group_by_col` to compute it separately per year:
 
 ```{r}
-# Overall gamma diversity
-calc_gammadiv(dia)
-```
-
-To compute gamma diversity per year, first add a year column to the event
-table, then pass the grouping column name:
-
-```{r}
-dat$event$year <- as.integer(format(dat$event$eventDate, "%Y"))
-
-gamma_by_year <- calc_gammadiv(dat, group_by_col = "year")
-gamma_by_year
+calc_gammadiv(mzb, group_by_col = "year")
 ```
 
 ## Beta diversity
 
-Beta diversity measures how different communities are between sampling events.
-The `calc_betadiv()` function computes pairwise Simpson dissimilarity:
+Beta diversity measures how different communities are between events.
+`calc_betadiv()` computes pairwise **Simpson dissimilarity**:
 
 $$\beta_{sim} = \frac{\min(b, c)}{a + \min(b, c)}$$
 
-where *a* is the number of shared taxa, *b* and *c* are the numbers of taxa
-unique to each event. The index ranges from 0 (identical) to 1 (completely
-different) and is independent of richness differences.
+where *a* = shared taxa, *b* and *c* = taxa unique to each event. The index
+ranges from 0 (identical communities) to 1 (no shared taxa) and is independent
+of richness differences.
 
 ```{r}
-# Overall beta diversity
-calc_betadiv(dia)
+calc_betadiv(mzb, group_by_col = "year")
 ```
 
-```{r}
-# Beta diversity per year
-beta_by_year <- calc_betadiv(dat, group_by_col = "year")
-beta_by_year
-```
+The output contains the mean and the 25th/75th percentile of pairwise
+dissimilarities within each group.
 
-# Visualising results
+---
 
-The indicator outputs are standard tibbles that work seamlessly with
-`ggplot2`.
+# Chaining and visualisation
 
-## Alpha diversity over time
+Event-level functions return the data list unchanged (except for the new
+column), so they compose naturally. The following pipeline computes alpha
+diversity and abundance for `mzb` in a single chain:
 
-```{r alpha-plot}
-alpha_summary <- dat$event %>%
+```{r mzb-calc}
+campaigns <- c(2012, 2015, 2019, 2023)
+
+mzb_ind <- mzb %>%
+  calc_alphadiv() %>%
+  calc_abundance(method = "total")
+
+alpha_mzb <- mzb_ind$event %>%
   group_by(year) %>%
   summarise(
     mean = mean(alphadiv),
-    lo = mean - qt(0.975, n() - 1) * sd(alphadiv) / sqrt(n()),
-    up = mean + qt(0.975, n() - 1) * sd(alphadiv) / sqrt(n())
+    lo   = mean - qt(0.975, n() - 1) * sd(alphadiv) / sqrt(n()),
+    up   = mean + qt(0.975, n() - 1) * sd(alphadiv) / sqrt(n()),
+    .groups = "drop"
   )
 
-ggplot(alpha_summary, aes(x = year, y = mean, ymin = lo, ymax = up)) +
-  geom_point() +
-  geom_errorbar(width = 0.2) +
-  geom_smooth(method = "lm", se = FALSE, linetype = 2) +
-  ylim(0, NA) +
-  labs(
-    title = "Alpha Diversity",
-    x = "",
-    y = "Number of taxa per event"
+abund_mzb <- mzb_ind$event %>%
+  group_by(year) %>%
+  summarise(
+    mean = mean(abundance),
+    lo   = mean - qt(0.975, n() - 1) * sd(abundance) / sqrt(n()),
+    up   = mean + qt(0.975, n() - 1) * sd(abundance) / sqrt(n()),
+    .groups = "drop"
   )
+
+beta_mzb <- calc_betadiv(mzb, group_by_col = "year")
 ```
 
-## Gamma diversity over time
+All indicator outputs are standard tibbles and work directly with `ggplot2`:
 
-```{r gamma-plot}
-ggplot(gamma_by_year, aes(x = year, y = gammadiv)) +
+```{r mzb-plot, fig.width = 10, fig.height = 4}
+p_alpha <- ggplot(alpha_mzb, aes(x = year, y = mean, ymin = lo, ymax = up)) +
   geom_point() +
+  geom_errorbar(width = 0.5) +
   geom_smooth(method = "lm", se = FALSE, linetype = 2) +
+  scale_x_continuous(breaks = campaigns) +
   ylim(0, NA) +
   labs(
-    title = "Gamma Diversity",
-    x = "",
-    y = "Total number of taxa"
+    title = "Artenvielfalt\n(Alpha-Diversität)",
+    x     = "Zeitperiode",
+    y     = "Artenvielfalt\n[Anzahl Taxa pro Probestelle]"
   )
-```
 
-## Beta diversity over time
-
-```{r beta-plot}
-ggplot(beta_by_year, aes(x = year, y = betadiv_mean,
-                         ymin = betadiv_q25, ymax = betadiv_q75)) +
+p_beta <- ggplot(beta_mzb, aes(x = year, y = betadiv_mean,
+                                ymin = betadiv_q25, ymax = betadiv_q75)) +
   geom_point() +
-  geom_errorbar(width = 0.2) +
+  geom_errorbar(width = 0.5) +
   geom_smooth(method = "lm", se = FALSE, linetype = 2) +
+  scale_x_continuous(breaks = campaigns) +
   ylim(0, NA) +
   labs(
-    title = "Beta Diversity (Simpson Dissimilarity)",
-    x = "",
-    y = "Community dissimilarity"
+    title = "Vielfalt der Artgemeinschaften\n(Beta-Diversität)",
+    x     = "Zeitperiode",
+    y     = "Vielfalt der Artgemeinschaften\n[Simpson Index (0–1)]"
   )
+
+p_abund <- ggplot(abund_mzb, aes(x = year, y = mean, ymin = lo, ymax = up)) +
+  geom_point() +
+  geom_errorbar(width = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, linetype = 2) +
+  scale_x_continuous(breaks = campaigns) +
+  ylim(0, NA) +
+  labs(
+    title = "Abundanz",
+    x     = "Zeitperiode",
+    y     = "Abundanz\n[Gesamtindividuenzahl pro Probestelle]"
+  )
+
+p_alpha + p_beta + p_abund
 ```
+
+---
 
 # Index normalisation
 
-To compare indicators on a common scale, use `calc_indicator_index()` to
-normalise values relative to a reference year (base = 100):
+To express indicators relative to a reference point (base = 100), use
+`calc_indicator_index()`. This is useful for comparing trends across indicators
+or datasets measured on different scales.
 
-```{r}
+Here we normalise gamma diversity relative to the 2012 baseline:
+
+```{r index-calc}
+gamma_mzb <- calc_gammadiv(mzb, group_by_col = "year")
+
 gamma_indexed <- calc_indicator_index(
-  gamma_by_year,
+  gamma_mzb,
   value_col = "gammadiv",
   group_col = "year",
-  ref_value = min(gamma_by_year$year)
+  ref_value = 2012
 )
 gamma_indexed
 ```
@@ -247,32 +270,174 @@ gamma_indexed
 ```{r index-plot}
 ggplot(gamma_indexed, aes(x = year, y = index)) +
   geom_hline(yintercept = 100, linetype = 2) +
-  geom_point() +
+  geom_point(size = 2) +
   geom_line() +
+  scale_x_continuous(breaks = campaigns) +
   labs(
-    title = "Gamma Diversity Index",
-    x = "",
-    y = paste0("Index [", min(gamma_by_year$year), " = 100]")
+    title = "Gamma-Diversität MZB (Index)",
+    x     = "Zeitperiode",
+    y     = "Index [2012 = 100]"
   )
 ```
 
-# Extending the package
+---
 
-The `msk` package is designed to be extended with additional indicator
-functions. Planned additions include:
+# Complete example: Fish data
 
-- **IBCH** (Indice Biologique Global Harmonisé) -- for macroinvertebrate
-  assessment
-- **SPEAR Index** -- pesticide sensitivity indicator
-- **Shannon diversity / Evenness** -- abundance-weighted diversity measures
-- **Trend analysis** -- temporal trend estimation with mixed models
+The `fisch` dataset contains NAWA fish monitoring data from four campaigns
+(2012, 2015, 2019, 2023) across 51 stations sampled in at least three of the
+four campaigns. It demonstrates how the Darwin Core structure accommodates
+additional variables: the `totalWeight_g` column in the occurrence table
+enables biomass analyses alongside the standard diversity indicators.
 
-New indicator functions should follow the established pattern:
+## Data overview
 
-1. Take a `dat` list with `event` and `occurrence` tables
-2. Compute the indicator
-3. Return the modified `dat` list (for event-level indicators) or a summary
-   tibble (for group-level indicators)
+```{r}
+data("fisch")
+str(fisch, max.level = 1)
+```
 
-This ensures all functions are composable and work with the same data
-structure.
+The event table contains metadata including the number of electrofishing runs
+(`N_runs`) and the stream name:
+
+```{r}
+head(fisch$event)
+```
+
+The occurrence table contains one row per species per event, with abundance
+(individuals), biomass, and species names:
+
+```{r}
+head(fisch$occurrence)
+```
+
+## Calculating indicators
+
+We use the standard `msk` functions for alpha diversity and abundance, then
+add a custom biomass metric derived directly from the occurrence table. This
+illustrates how the Darwin Core structure makes it straightforward to extend
+the standard workflow with dataset-specific metrics:
+
+```{r fisch-calc}
+fisch_ind <- fisch %>%
+  calc_alphadiv() %>%
+  calc_abundance(method = "total")
+
+# Custom metric: total biomass per event (sum of totalWeight_g)
+biomass_per_event <- fisch$occurrence %>%
+  group_by(eventID) %>%
+  summarise(biomass_g = sum(totalWeight_g, na.rm = TRUE), .groups = "drop")
+
+fisch_ind$event <- fisch_ind$event %>%
+  left_join(biomass_per_event, by = "eventID")
+
+head(fisch_ind$event)
+```
+
+## Summarising by year
+
+```{r fisch-summary}
+campaigns <- c(2012, 2015, 2019, 2023)
+
+alpha_fisch <- fisch_ind$event %>%
+  group_by(year) %>%
+  summarise(
+    mean = mean(alphadiv),
+    lo   = mean - qt(0.975, n() - 1) * sd(alphadiv) / sqrt(n()),
+    up   = mean + qt(0.975, n() - 1) * sd(alphadiv) / sqrt(n()),
+    .groups = "drop"
+  )
+
+abund_fisch <- fisch_ind$event %>%
+  group_by(year) %>%
+  summarise(
+    mean = mean(abundance),
+    lo   = mean - qt(0.975, n() - 1) * sd(abundance) / sqrt(n()),
+    up   = mean + qt(0.975, n() - 1) * sd(abundance) / sqrt(n()),
+    .groups = "drop"
+  )
+
+biomass_fisch <- fisch_ind$event %>%
+  group_by(year) %>%
+  summarise(
+    mean = mean(biomass_g),
+    lo   = mean - qt(0.975, n() - 1) * sd(biomass_g) / sqrt(n()),
+    up   = mean + qt(0.975, n() - 1) * sd(biomass_g) / sqrt(n()),
+    .groups = "drop"
+  )
+
+beta_fisch  <- calc_betadiv(fisch, group_by_col = "year")
+gamma_fisch <- calc_gammadiv(fisch, group_by_col = "year")
+```
+
+## Results
+
+```{r fisch-plot, fig.width = 10, fig.height = 8}
+p_alpha_f <- ggplot(alpha_fisch, aes(x = year, y = mean, ymin = lo, ymax = up)) +
+  geom_point() +
+  geom_errorbar(width = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, linetype = 2) +
+  scale_x_continuous(breaks = campaigns) +
+  ylim(0, NA) +
+  labs(
+    title = "Artenvielfalt\n(Alpha-Diversität)",
+    x     = "Zeitperiode",
+    y     = "Artenvielfalt\n[Anzahl Arten pro Probestelle]"
+  )
+
+p_abund_f <- ggplot(abund_fisch, aes(x = year, y = mean, ymin = lo, ymax = up)) +
+  geom_point() +
+  geom_errorbar(width = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, linetype = 2) +
+  scale_x_continuous(breaks = campaigns) +
+  ylim(0, NA) +
+  labs(
+    title = "Abundanz",
+    x     = "Zeitperiode",
+    y     = "Abundanz\n[Gesamtindividuenzahl pro Probestelle]"
+  )
+
+p_biomass_f <- ggplot(biomass_fisch, aes(x = year, y = mean, ymin = lo, ymax = up)) +
+  geom_point() +
+  geom_errorbar(width = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, linetype = 2) +
+  scale_x_continuous(breaks = campaigns) +
+  ylim(0, NA) +
+  labs(
+    title = "Biomasse",
+    x     = "Zeitperiode",
+    y     = "Biomasse\n[Gesamtgewicht g pro Probestelle]"
+  )
+
+p_beta_f <- ggplot(beta_fisch, aes(x = year, y = betadiv_mean,
+                                    ymin = betadiv_q25, ymax = betadiv_q75)) +
+  geom_point() +
+  geom_errorbar(width = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, linetype = 2) +
+  scale_x_continuous(breaks = campaigns) +
+  ylim(0, NA) +
+  labs(
+    title = "Vielfalt der Artgemeinschaften\n(Beta-Diversität)",
+    x     = "Zeitperiode",
+    y     = "Vielfalt der Artgemeinschaften\n[Simpson Index (0–1)]"
+  )
+
+(p_alpha_f + p_abund_f) / (p_biomass_f + p_beta_f)
+```
+
+Gamma diversity shows the total number of fish species recorded across all
+stations per campaign:
+
+```{r fisch-gamma, fig.width = 5, fig.height = 4}
+ggplot(gamma_fisch, aes(x = year, y = gammadiv)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", se = FALSE, linetype = 2) +
+  scale_x_continuous(breaks = campaigns) +
+  ylim(0, NA) +
+  labs(
+    title = "Gamma-Diversität Fische",
+    x     = "Zeitperiode",
+    y     = "Gesamtartenzahl"
+  )
+```
+

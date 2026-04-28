@@ -1,33 +1,51 @@
 # msk
 
-R package for calculating biodiversity indicators based on data from the Swiss Modular Stepwise Procedure ([Modulstufenkonzept MSK](https://modul-stufen-konzept.ch/en/about-the-msp/)). The MSK is a set of methods for surveying and assessing the status of water bodies. It is a collaboration between the federal government, cantons and research institutions.
+R package for calculating biodiversity indicators from species occurrence data.
+Developed for the Swiss [Modular Stepwise Procedure](https://modul-stufen-konzept.ch/en/about-the-msp/)
+(Modulstufenkonzept, MSK), a set of standardised methods for surveying and
+assessing the status of water bodies in Switzerland.
 
-The package works with any dataset that follows the [Darwin Core](https://dwc.tdwg.org/terms/) standard (event/occurrence tables linked by `eventID`).
+The package works with any dataset that follows the
+[Darwin Core](https://dwc.tdwg.org/terms/) standard (event/occurrence tables
+linked by `eventID`).
 
 ## Installation
 
 ```r
-# Install the package from GitHub (first option)
+# Install from GitHub
 # install.packages("pak")
 pak::pak("TobiasRoth/msk")
 
-# Install the package from GitHub (second option)
+# Alternative
 # install.packages("devtools")
 devtools::install_github("TobiasRoth/msk")
 
-# Load library
 library(msk)
 ```
 
 ## Available functions
 
-| Function | Description |
-|:---|:---|
-| `calc_alphadiv()` | Alpha diversity (number of distinct taxa per event) |
-| `calc_abundance()` | Total abundance (sum of `individualCount` per event) |
-| `calc_gammadiv()` | Gamma diversity (total distinct taxa, optionally per group) |
-| `calc_betadiv()` | Beta diversity (pairwise Simpson dissimilarity) |
-| `calc_indicator_index()` | Normalise indicator values to a reference (base = 100) |
+| Function | Type | Description |
+|:---|:---|:---|
+| `calc_alphadiv()` | event-level | Number of distinct taxa per event |
+| `calc_abundance()` | event-level | Total or mean-per-taxon abundance per event |
+| `calc_gammadiv()` | group-level | Total distinct taxa across events (optionally per group) |
+| `calc_betadiv()` | group-level | Pairwise Simpson dissimilarity between events |
+| `calc_indicator_index()` | — | Normalise indicator values to a reference (base = 100) |
+
+Event-level functions add a column to the `event` table and return the modified
+data list, so they can be chained with `%>%`. Group-level functions return a
+summary tibble.
+
+## Data structure
+
+The package expects data as a list with two data frames:
+
+- **`event`** — one row per sampling event; requires `eventID`
+- **`occurrence`** — one row per taxon per event; requires `eventID`,
+  `taxonID`, and (for abundance functions) `individualCount`
+
+Additional columns are preserved by all functions.
 
 ## Quick example
 
@@ -35,51 +53,42 @@ library(msk)
 library(msk)
 library(dplyr)
 
-# Calculate alpha diversity and abundance using the included diatom dataset
-dat <- dia %>%
+# Chain multiple indicators using the included macroinvertebrate dataset
+dat <- mzb %>%
   calc_alphadiv() %>%
-  calc_abundance()
+  calc_abundance(method = "total") %>%
+  calc_abundance(method = "mean_per_taxon")
 
 head(dat$event)
 
-# Gamma diversity per year
-dat$event$year <- as.integer(format(dat$event$eventDate, "%Y"))
-calc_gammadiv(dat, group_by_col = "year")
-
-# Beta diversity per year
-calc_betadiv(dat, group_by_col = "year")
+# Group-level indicators: gamma and beta diversity per year
+calc_gammadiv(mzb, group_by_col = "year")
+calc_betadiv(mzb, group_by_col = "year")
 ```
 
-## Data structure
+## Example datasets
 
-The package expects data as a list with two data frames following Darwin Core terminology:
+| Dataset | Description |
+|:---|:---|
+| `mzb` | Macroinvertebrates (MZB) — 340 events, 85 stations, 4 NAWA campaigns (2012–2023) |
+| `fisch` | Fish — 176 events, 51 stations, 4 NAWA campaigns (2012–2023); includes biomass data |
 
-- **`event`** -- one row per sampling event (requires `eventID`)
-- **`occurrence`** -- one row per taxon observation (requires `eventID` and `taxonID`, optionally `individualCount`)
-
-The included dataset `dia` (diatoms from the Swiss NAWA monitoring programme) serves as an example:
-
-```r
-data("dia")
-str(dia, max.level = 1)
-```
+Both datasets are included for demonstration purposes only and must not be used
+for analysis or reporting. The authoritative source is the
+[MIDAT database](https://www.midat.ch) (MZB) and the relevant cantonal and
+federal fish data repositories.
 
 ## Documentation
 
-A detailed vignette explains the full workflow (data structure, indicator calculation, visualisation, index normalisation):
-
-```r
-vignette("Biodiversity_Indicators", package = "msk")
-```
-
-After installing the package with `build_vignettes = TRUE`, the vignette is also available in the R help system:
+A vignette covers the full workflow — data structure, all indicator functions,
+chaining, visualisation with `ggplot2`, index normalisation, and a complete
+fish data analysis:
 
 ```r
 # Install with vignettes
 devtools::install_github("TobiasRoth/msk", build_vignettes = TRUE)
 
-# Browse all vignettes
-browseVignettes("msk")
+vignette("Biodiversity_Indicators", package = "msk")
 ```
 
 ## License

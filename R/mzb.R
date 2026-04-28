@@ -1,0 +1,59 @@
+#' Macroinvertebrate data (events and occurrences)
+#'
+#' Dataset with sampling events and associated taxon occurrences
+#' (macroinvertebrates, MZB) from the Swiss NAWA monitoring programme.
+#' The data are stored as a list with two tibbles following the
+#' \href{https://dwc.tdwg.org/terms/}{Darwin Core} standard:
+#' \code{event} describes individual sampling events, \code{occurrence}
+#' the observed taxa per event. The dataset is pre-filtered to the four
+#' NAWA campaigns, sites below 1000 m a.s.l. sampled in all four campaigns,
+#' and excludes non-native species (Neozoa).
+#'
+#' @format A \code{list} with 2 elements:
+#' \describe{
+#'   \item{event}{A tibble with 340 rows and 5 variables:
+#'     \describe{
+#'       \item{eventID}{Character; unique identifier of the sampling event
+#'         (e.g. \code{"88_2012"}).}
+#'       \item{eventDate}{Date (\code{Date}); date of sampling.}
+#'       \item{locationID}{Integer; identifier of the sampling location
+#'         (NAWA station number).}
+#'       \item{year}{Integer; year of sampling.}
+#'       \item{altitude}{Numeric; altitude of the sampling location in
+#'         metres above sea level.}
+#'     }
+#'   }
+#'   \item{occurrence}{A tibble with 10,339 rows and 3 variables:
+#'     \describe{
+#'       \item{eventID}{Character; link to the corresponding entry in
+#'         \code{event}.}
+#'       \item{taxonID}{Character; IBCH taxon name of the recorded taxon.}
+#'       \item{individualCount}{Numeric; estimated number of individuals
+#'         (abundance class midpoints: 33, 229, or 1535).}
+#'     }
+#'   }
+#' }
+#'
+#' @details
+#' The two tibbles are linked by \code{eventID}: each row in
+#' \code{occurrence} refers to exactly one event in \code{event}.
+#' The dataset covers the four NAWA campaigns (2012, 2015, 2019, 2023),
+#' restricted to sites below 1000 m a.s.l. with data in all four campaigns.
+#' Abundance values are derived from semi-quantitative abundance classes:
+#' 1--10 individuals are recorded exactly; 11--100 are coded as 33;
+#' 101--1000 as 229; >1000 as 1535.
+#'
+#' \strong{Important -- for demonstration purposes only.} This dataset is
+#' included solely to illustrate package functionality. It must not be used
+#' for analysis, reporting, or publication. The authoritative source for
+#' Swiss NAWA macroinvertebrate data is the
+#' \href{https://www.midat.ch}{MIDAT database}. In case of any discrepancy
+#' between this dataset and MIDAT, MIDAT takes precedence.
+#'
+#' @examples
+#' data("mzb")
+#' names(mzb)
+#' dplyr::glimpse(mzb$event)
+#' dplyr::glimpse(mzb$occurrence)
+#'
+"mzb"
